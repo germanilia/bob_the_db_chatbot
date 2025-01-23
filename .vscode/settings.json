@@ -1,0 +1,6 @@
+{
+  "fnm.autoVersion": true,
+  "terminal.integrated.shellArgs.linux": ["--login"],
+  "terminal.integrated.shellArgs.osx": ["--login"],
+  "terminal.integrated.shellArgs.windows": []
+}

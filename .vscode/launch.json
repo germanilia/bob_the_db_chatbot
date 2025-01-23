@@ -1,0 +1,90 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Backend: FastAPI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app:app",
+                "--reload",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000"
+            ],
+            "jinja": true,
+            "console": "internalConsole",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYDEVD_DISABLE_FILE_VALIDATION": "1"
+            }
+        },
+        {
+            "name": "Frontend: Browser",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:5173",
+            "webRoot": "${workspaceFolder}/frontend",
+            "runtimeArgs": [
+                "--auto-open-devtools-for-tabs"
+            ],
+            "serverReadyAction": {
+                "pattern": "ready in \\d+ ms",
+                "uriFormat": "http://localhost:%s",
+                "action": "openExternally",
+                "webRoot": "${workspaceFolder}/frontend",
+                "delay": 1000
+            }
+        },
+        {
+            "name": "Frontend: Vite Server",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/frontend",
+            "runtimeExecutable": "fnm",
+            "runtimeArgs": [
+                "exec",
+                "--using=20",
+                "--",
+                "npm",
+                "run",
+                "dev"
+            ],
+            "skipFiles": ["<node_internals>/**"],
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "outputCapture": "std",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Full Stack: All Services",
+            "configurations": [
+                "Backend: FastAPI",
+                "Frontend: Vite Server",
+                "Frontend: Browser"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "fullstack",
+                "order": 1
+            }
+        },
+        {
+            "name": "Frontend Only",
+            "configurations": [
+                "Frontend: Vite Server",
+                "Frontend: Browser"
+            ],
+            "presentation": {
+                "group": "individual",
+                "order": 2
+            }
+        }
+    ]
+} 

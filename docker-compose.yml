@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - COMPOSE_DATABASE_URL=postgresql+asyncpg://postgres:Cowabunga1!@host.docker.internal:5432/bob_the_db_chatbot
+      - COMPOSE_SYNC_DATABASE_URL=postgresql://postgres:Cowabunga1!@host.docker.internal:5432/bob_the_db_chatbot
+    networks:
+      - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge 

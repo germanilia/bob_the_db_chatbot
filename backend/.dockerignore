@@ -1,0 +1,16 @@
+# Ignore schemas folder
+schemas/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store 
