@@ -1,5 +1,7 @@
 import json
 from decimal import Decimal
+from models.schemas import AIConnection
+from services.connection_service import ConnectionService
 from services.database_service import DatabaseService
 from services.bedrock_service import BedrockService
 import logging
@@ -14,19 +16,20 @@ class SQLGenerationService:
     def __init__(self):
         self.db_service = DatabaseService()
         self.bedrock_service = BedrockService()
+        self.connection_service = ConnectionService()
 
     async def generate_sql(
         self,
         prompt: str,
-        connection_name: str,
+        connection:AIConnection,
         error_history: list[str] = [],
         attempt: int = 1
     ) -> dict:
-        """Generate SQL query using schema context and Bedrock AI"""
-        schema = await self.db_service.get_stored_schema(connection_name)
-        schema_content = schema.get('schema_content') if isinstance(schema, dict) else str(schema)
+        """Generate SQL query using in-memory schema context and Bedrock AI"""
+        schema_content = await self.db_service.generate_schema(connection)
+        
         if not schema_content:
-            raise ValueError("No schema content available")
+            schema_content = "The database is empty"
         
         max_attempts = 3
         last_error = None
@@ -58,42 +61,49 @@ class SQLGenerationService:
         
         if error_history:
             error_context = "\n\nPrevious errors encountered:\n- " + "\n- ".join(error_history)
-            error_context += "\n\nPlease ensure your response is:\n"
-            error_context += "1. A valid JSON object with 'query' and 'summary' fields\n"
-            error_context += "2. Has proper spacing in the SQL query (no extra spaces or line breaks)\n"
-            error_context += "3. Uses simple single quotes for SQL strings (not escaped)\n"
-            error_context += "4. Contains no additional text or formatting outside the JSON object"
+            error_context += "\n\nPlease ensure your response:"
+            error_context += "\n1. Contains only a SINGLE SQL statement (no semicolons except in string literals)"
+            error_context += "\n2. Is a valid JSON object with 'query' and 'summary' fields"
+            error_context += "\n3. Has proper spacing in the SQL query (no extra spaces or line breaks)"
+            error_context += "\n4. Uses simple single quotes for SQL strings (not escaped)"
+            error_context += "\n5. Contains no additional text or formatting outside the JSON object"
+            error_context += "\n6. For DELETE operations with constraints, use proper JOIN and WHERE clauses instead of multiple statements"
         
         return f"""Given the following database schema:
 {schema}
 
-Generate an SQL query for the following request:
+Generate a SINGLE SQL query for the following request:
 {prompt}{attempt_context}{error_context}
 
-IMPORTANT: Return a properly formatted JSON object with consistent spacing and no line breaks in the SQL query.
+IMPORTANT: 
+- Return ONLY ONE SQL statement (no semicolons except in string literals)
+- For operations requiring multiple steps (like cascading deletes), use proper JOIN and WHERE clauses
+- Return a properly formatted JSON object with consistent spacing and no line breaks in the SQL query
 
 Here are two examples of expected outputs:
 
-Example 1 - For the request "Show me all orders from last month":
+Example 1 - For the request "Delete all orders and their related items":
 {{
-    "query": "SELECT o.order_id, o.order_date, c.customer_name, o.total_amount FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE o.order_date >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)",
-    "summary": "Retrieves all orders from the last month with order details and customer names"
+    "query": "DELETE FROM orders WHERE order_id IN (SELECT o.order_id FROM orders o JOIN order_items oi ON o.order_id = oi.order_id)",
+    "summary": "Deletes orders and their related items using a subquery"
 }}
 
-Example 2 - For the request "Find top 5 products by revenue":
+Example 2 - For the request "Update product prices and related order items":
 {{
-    "query": "SELECT p.product_name, SUM(oi.quantity * oi.unit_price) as total_revenue FROM order_items oi JOIN products p ON oi.product_id = p.product_id GROUP BY p.product_id, p.product_name ORDER BY total_revenue DESC LIMIT 5",
-    "summary": "Calculates and returns the top 5 products by total revenue generated"
+    "query": "UPDATE products p SET price = p.price * 1.1 WHERE product_id IN (SELECT DISTINCT product_id FROM order_items WHERE order_date >= CURRENT_DATE - INTERVAL '30 days')",
+    "summary": "Updates product prices with a 10% increase for products ordered in the last 30 days"
 }}
 
 Return only a JSON object with two fields:
-1. 'query': the SQL query (with proper spacing and no line breaks)
+1. 'query': the SQL query (single statement, proper spacing, no line breaks)
 2. 'summary': a brief explanation of what the query does"""
 
     def _parse_response(self, response: str, attempt: int = 1) -> dict:
         """Parse the raw Bedrock response into structured data"""
         try:
             parsed = json.loads(response)
+            
+            # Validate required fields
             required_fields = {'query', 'summary'}
             if not all(field in parsed for field in required_fields):
                 raise json.JSONDecodeError(
@@ -101,13 +111,32 @@ Return only a JSON object with two fields:
                     response,
                     0
                 )
+            
+            # Validate query doesn't contain multiple statements
+            query = parsed['query']
+            if ';' in query and not self._is_semicolon_in_string(query):
+                raise json.JSONDecodeError(
+                    "Multiple SQL statements detected. Only one statement is allowed.",
+                    response,
+                    0
+                )
+                
             return parsed
         except json.JSONDecodeError as e:
-            # Add context to the error message that will be used in the next attempt
             error_msg = f"""JSON parsing failed. Response must be a valid JSON object with 'query' and 'summary' fields.
 Original response: {response}
 Error: {str(e)}"""
             raise json.JSONDecodeError(error_msg, response, e.pos)
+
+    def _is_semicolon_in_string(self, query: str) -> bool:
+        """Check if semicolon appears only within string literals"""
+        in_string = False
+        for char in query:
+            if char == "'":
+                in_string = not in_string
+            elif char == ';' and not in_string:
+                return False
+        return True
 
     async def generate_visuals(self, results: list, original_prompt: str) -> dict:
         """Generate visualization suggestions"""
@@ -188,6 +217,23 @@ The response must be valid JSON compatible with Chart.js library.
             return parsed
         except json.JSONDecodeError:
             return {"visualizations": []}
+
+    async def extract_row_ids(self, schema:str, data:str)->list[str]:
+        """Extract row ids from data"""
+        prompt = f"""Given the following database schema:
+{schema}
+
+Extract row ids from this data sample:
+{data}
+
+Example output:
+["1", "2", "3"]
+
+The response must be a valid JSON array of strings.
+The response must start with [ and end with ].
+Return a list of row ids"""
+        response = await self.bedrock_service.invoke_model(prompt)
+        return json.loads(response)
 
     async def analyze_query_type(self, user_prompt: str) -> dict:
         """Determine if query requires multiple steps"""

@@ -4,3 +4,4 @@ node_modules
 backend/schemas
 __pycache__
 .DS_Store
+servers.json

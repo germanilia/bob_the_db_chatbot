@@ -3,8 +3,6 @@ from alembic import context
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from sqlalchemy.ext.declarative import declarative_base
-# from backend.database import Base
 
 # Add project root to Python path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -13,13 +11,13 @@ print(project_root)
 print("-----------------------------------------------")
 sys.path.insert(0, str(project_root))
 
-# Now import your models using absolute path
-# from backend.models.models import Base  # noqa: E402
+# Try both import styles to handle different contexts
+from backend.database import Base, sync_engine
+from backend.models.models import Server, Conversation, ConversationMessage, User
 
-Base = declarative_base()
+
 # Load environment variables from .env
-base_dir = Path(__file__).resolve().parent.parent.parent  # Adjust path if needed
-load_dotenv(os.path.join(base_dir, '.env'))
+load_dotenv(os.path.join(project_root, '.env'))
 
 # This is the Alembic Config object
 config = context.config
@@ -31,8 +29,6 @@ if not SYNC_DATABASE_URL:
 
 # Set the SQLAlchemy URL in the config
 config.set_main_option("sqlalchemy.url", SYNC_DATABASE_URL)
-
-# Import your models here
 
 target_metadata = Base.metadata
 
@@ -49,8 +45,6 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode using SYNC connection."""
-    from backend.database import sync_engine  # Import the sync engine
-    
     with sync_engine.connect() as connection:
         context.configure(
             connection=connection,

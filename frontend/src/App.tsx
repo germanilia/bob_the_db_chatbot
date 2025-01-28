@@ -1,9 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import Layout from './components/Layout.tsx';
-import Home from './pages/Home.tsx';
 import ConnectDb from './pages/ConnectDb.tsx';
+import TableManagement from './pages/TableManagement.tsx';
+import { ChatPage } from './pages/ChatPage.tsx';
+import { ConnectionProvider } from './context/ConnectionContext';
 
 const darkTheme = createTheme({
   palette: {
@@ -27,20 +29,47 @@ const darkTheme = createTheme({
   },
 });
 
+const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <Layout><ConnectDb /></Layout>,
+    },
+    {
+      path: '/connect-db',
+      element: <Layout><ConnectDb /></Layout>,
+    },
+    {
+      path: '/tables',
+      element: <Layout><TableManagement /></Layout>,
+    },
+    {
+      path: '/chat',
+      element: <Layout><ChatPage /></Layout>,
+    },
+    {
+      path: '*',
+      element: <Layout><ConnectDb /></Layout>,
+    },
+  ],
+  {
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    } as any,
+  }
+);
+
 const App: React.FC = () => {
   return (
-    <ThemeProvider theme={darkTheme}>
-      <CssBaseline />
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/connect-db" element={<ConnectDb />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      </Router>
-    </ThemeProvider>
+    <ConnectionProvider>
+      <ThemeProvider theme={darkTheme}>
+        <CssBaseline />
+        <RouterProvider router={router} />
+        {/* Add portal container for modals at the root level */}
+        <div id="modal-root" />
+      </ThemeProvider>
+    </ConnectionProvider>
   );
 };
 

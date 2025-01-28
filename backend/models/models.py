@@ -1,54 +1,55 @@
-from pydantic import BaseModel
 from typing import List
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from database import Base
 from datetime import datetime
-from enum import StrEnum
+from pydantic import BaseModel
 
-class DatabaseType(StrEnum):
-    MYSQL = "mysql"
-    POSTGRESQL = "postgresql"
-
-class AIConnection(BaseModel):
-    name: str
-    db_type: DatabaseType
-    host: str
-    port: int
-    username: str
-    password: str
-    database_name: str
-    
-class AIQuery(BaseModel):
-    query: str
-    summary: str
+# Try both import styles to handle different contexts
+try:
+    from backend.database import Base
+except ImportError:
+    from database import Base
 
 class DatabaseSchema(BaseModel):
     tables: List[str]
     schema: str
 
-
-
+class Server(Base):
+    __tablename__ = "servers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    server_id = Column(String(100), unique=True, index=True)  # The generated ID like postgresql_localhost_5432_postgres
+    db_type = Column(String(50), nullable=False)
+    host = Column(String(255), nullable=False)
+    port = Column(Integer, nullable=False)
+    username = Column(String(100), nullable=False)
+    password = Column(String(255), nullable=False)
+    alias = Column(String(100))
+    database_name = Column(String(100))  # Added database_name field
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    conversations = relationship("Conversation", back_populates="server")
 
 class Conversation(Base):
     __tablename__ = "conversations"
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    connection_name = Column(String(50))
+    server_id = Column(Integer, ForeignKey("servers.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
-    name = Column(String(50), nullable=False)  # Changed to 50 characters max
+    name = Column(String(50), nullable=False)
+    database_name = Column(String(100))  # Database name for this conversation
     
     messages = relationship("ConversationMessage", back_populates="conversation")
     user = relationship("User", back_populates="conversations")
+    server = relationship("Server", back_populates="conversations")
 
 class ConversationMessage(Base):
     __tablename__ = "conversation_messages"
     
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(Integer, ForeignKey("conversations.id")) 
-    prompt = Column(Text)
+    prompt = Column(Text())
     sql_query = Column(Text)
     results_summary = Column(Text)
     result_data = Column(JSON)  # New JSON field for full results

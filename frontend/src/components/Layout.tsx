@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useConnection } from '../context/ConnectionContext';
 import './Layout.css';
 
 interface LayoutProps {
@@ -11,10 +12,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMobile, setIsMobile] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { serverName, databaseName } = useConnection();
 
   const menuItems = [
-    { text: 'Dashboard', path: '/' },
-    { text: 'Connections', path: '/connect-db' },
+    { text: 'Connections', path: '/' },
+    { text: 'Database Tables', path: '/tables' },
+    { text: 'Chat', path: '/chat' },
   ];
 
   useEffect(() => {
@@ -32,6 +35,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setIsDrawerOpen(!isDrawerOpen);
   };
 
+  const getTitle = () => {
+    let title = 'Bob The DB Chatbot';
+    if (serverName) {
+      title += ` - ${serverName}`;
+      if (databaseName) {
+        title += `/${databaseName}`;
+      }
+    }
+    return title;
+  };
+
   return (
     <div className="layout">
       {/* Header */}
@@ -39,14 +53,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <button 
           className="menu-button"
           onClick={toggleDrawer}
+          aria-label="Toggle navigation menu"
+          aria-expanded={isDrawerOpen}
+          aria-controls="navigation-drawer"
         >
           ☰
         </button>
-        <h1>Bob The DB Chatbot</h1>
+        <h1>{getTitle()}</h1>
       </header>
 
       {/* Navigation Drawer */}
-      <nav className={`drawer ${isDrawerOpen ? 'open' : ''} ${isMobile ? 'mobile' : ''}`}>
+      <nav 
+        className={`drawer ${isDrawerOpen ? 'open' : ''} ${isMobile ? 'mobile' : ''}`}
+        id="navigation-drawer"
+      >
         <ul className="nav-list">
           {menuItems.map((item) => (
             <li 
@@ -58,6 +78,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   navigate(item.path);
                   if (isMobile) setIsDrawerOpen(false);
                 }}
+                aria-current={location.pathname === item.path ? 'page' : undefined}
               >
                 {item.text}
               </button>

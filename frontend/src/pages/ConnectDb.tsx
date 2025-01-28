@@ -6,113 +6,142 @@ import {
   Paper,
   Typography,
   Grid,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
+  Card,
+  CardContent,
+  CardActions,
   IconButton,
   Alert,
   CircularProgress,
-  MenuItem
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import { AIConnection } from '../services/api.ts';
+import AddIcon from '@mui/icons-material/Add';
+import { AIConnection, ServerConnection, Server } from '../services/api.ts';
 import api from '../services/api.ts';
+import { useConnection } from '../context/ConnectionContext';
 
 const ConnectDb = () => {
-  const [connections, setConnections] = useState<AIConnection[]>([]);
-  const [newConnection, setNewConnection] = useState<AIConnection>({
-    name: '',
-    db_type: 'postgresql',
-    host: '',
-    port: 5432,  // Default PostgreSQL port
-    username: '',
-    password: '',
-    database_name: ''
-  });
+  const [servers, setServers] = useState<Server[]>([]);
+  const [selectedServer, setSelectedServer] = useState<Server | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [schemas, setSchemas] = useState<Record<string, { schema_content: string }>>({});
-  const [schemaLoading, setSchemaLoading] = useState<Record<string, boolean>>({});
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{open: boolean; server: Server | null}>({
+    open: false,
+    server: null
+  });
+  const [newServer, setNewServer] = useState<AIConnection>({
+    db_type: 'postgresql',
+    host: '',
+    port: 5432,
+    username: '',
+    password: '',
+    alias: '',
+    database_name: '',
+    server_id: '',
+    name: '',
+    id: ''
+  });
+  const { setConnection } = useConnection();
 
   useEffect(() => {
-    loadConnections();
+    loadServers();
   }, []);
 
-  useEffect(() => {
-    // Load schemas for all connections
-    connections.forEach(conn => {
-      loadSchema(conn.name);
-    });
-  }, [connections]);
-
-  const loadConnections = async () => {
+  const loadServers = async () => {
     try {
-      const response = await api.getConnections();
-      setConnections(response.data);
+      const response = await api.getServers();
+      setServers(response.data.servers);
     } catch (err) {
-      setError('Failed to load connections');
+      setError('Failed to load servers');
     }
   };
 
-  const loadSchema = async (connectionName: string) => {
-    setSchemaLoading(prev => ({ ...prev, [connectionName]: true }));
+  const handleServerSelect = async (server: Server) => {
     try {
-      const response = await api.getSchema(connectionName);
-      setSchemas(prev => ({ ...prev, [connectionName]: { schema_content: response.data.schema_content } }));
+      setLoading(true);
+      await api.selectServer(server.id);
+      setSelectedServer(server);
+      localStorage.setItem('selectedServer', JSON.stringify(server));
+      setConnection(server.alias, null);
+      setSuccess(`Connected to ${server.host}`);
     } catch (err) {
-      setSchemas(prev => ({ ...prev, [connectionName]: { schema_content: 'Failed to load schema' } }));
-    } finally {
-      setSchemaLoading(prev => ({ ...prev, [connectionName]: false }));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      await api.addConnection(newConnection);
-      await loadConnections();
-      setNewConnection({ name: '', db_type: '', host: '', port: 0, username: '', password: '', database_name: '' });
-      setSuccess('Connection added successfully');
-    } catch (err) {
-      setError('Failed to add connection');
+      setError('Failed to connect to server');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (name: string) => {
+  const handleAddServer = async () => {
     setLoading(true);
     setError('');
-    setSuccess('');
-
+    
     try {
-      await api.deleteConnection(name);
-      await loadConnections();
-      setSuccess('Connection deleted successfully');
+      const serverToAdd = {
+        ...newServer,
+        name: newServer.alias
+      };
+      
+      const response = await api.addServer(serverToAdd);
+      const newServerData = response.data;
+      
+      // Select the newly added server
+      await api.selectServer(newServerData.id);
+      
+      setServers(prevServers => [...prevServers, newServerData]);
+      setSelectedServer(newServerData);
+      localStorage.setItem('selectedServer', JSON.stringify(newServerData));
+      
+      setShowAddDialog(false);
+      setNewServer({
+        db_type: 'postgresql',
+        host: '',
+        port: 5432,
+        username: '',
+        password: '',
+        alias: '',
+        id: '',
+        name: '',
+        database_name: '',
+        server_id: ''
+      });
+      setSuccess('Server added and connected successfully');
     } catch (err) {
-      setError('Failed to delete connection');
+      setError('Failed to add server');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegenerateSchema = async (connectionName: string) => {
-    setSchemaLoading(prev => ({ ...prev, [connectionName]: true }));
+  const handleDeleteClick = (server: Server, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteConfirmation({ open: true, server });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmation.server) return;
+    
+    setLoading(true);
+    setError('');
+    
     try {
-      const response = await api.regenerateSchema(connectionName);
-      setSchemas(prev => ({ ...prev, [connectionName]: { schema_content: response.data.schema_content } }));
-      setSuccess('Schema regenerated successfully');
+      await api.deleteServer(deleteConfirmation.server.id);
+      await loadServers();
+      if (selectedServer?.id === deleteConfirmation.server.id) {
+        setSelectedServer(null);
+        localStorage.removeItem('selectedServer');
+      }
+      setSuccess('Server deleted successfully');
     } catch (err) {
-      setError('Failed to regenerate schema');
+      setError('Failed to delete server');
     } finally {
-      setSchemaLoading(prev => ({ ...prev, [connectionName]: false }));
+      setLoading(false);
+      setDeleteConfirmation({ open: false, server: null });
     }
   };
 
@@ -123,187 +152,216 @@ const ConnectDb = () => {
       overflow: 'auto',
       p: 3
     }}>
-      <Box sx={{ maxWidth: '1600px', margin: '0 auto' }}>
+      <Box sx={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">
+            Database Servers
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setShowAddDialog(true)}
+          >
+            Add Server
+          </Button>
+        </Box>
+
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h4" gutterBottom>
-              Add Database Connection
-            </Typography>
+          {servers.map((server) => (
+            <Grid item xs={12} sm={6} md={4} key={server.id}>
+              <Card 
+                sx={{ 
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s',
+                  '&:hover': {
+                    transform: 'scale(1.02)',
+                  },
+                  border: selectedServer?.id === server.id ? '2px solid primary.main' : 'none'
+                }}
+                onClick={() => handleServerSelect(server)}
+              >
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <Typography variant="h6" gutterBottom>
+                        {server.alias}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {server.db_type === 'postgresql' ? 'PostgreSQL' : 'MySQL'} - {server.host}:{server.port}
+                      </Typography>
+                    </div>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(e) => handleDeleteClick(server, e)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Username: {server.username}
+                  </Typography>
+                </CardContent>
+                <CardActions>
+                  <Button 
+                    size="small" 
+                    color="primary"
+                    variant={selectedServer?.id === server.id ? "contained" : "outlined"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleServerSelect(server);
+                    }}
+                  >
+                    {selectedServer?.id === server.id ? 'Connected' : 'Connect'}
+                  </Button>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
 
-            <Paper sx={{ 
-              p: 3, 
-              backgroundColor: 'background.paper',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: '12px'
-            }}>
-              <form onSubmit={handleSubmit}>
-                <TextField
-                  fullWidth
-                  label="Connection Name"
-                  value={newConnection.name}
-                  onChange={(e) => setNewConnection({ ...newConnection, name: e.target.value })}
-                  sx={{ mb: 2 }}
-                  InputLabelProps={{ sx: { color: 'text.secondary' } }}
-                  InputProps={{
-                    sx: {
-                      color: 'text.primary',
-                      '& fieldset': { borderColor: 'divider' }
-                    }
-                  }}
-                />
+        {servers.length === 0 && !loading && (
+          <Typography color="text.secondary" sx={{ mt: 2 }}>
+            No servers configured. Please add a server configuration.
+          </Typography>
+        )}
 
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        {/* Add Server Dialog */}
+        <Dialog 
+          open={showAddDialog} 
+          onClose={() => setShowAddDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Add New Server
+          </DialogTitle>
+          <DialogContent>
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
                 <TextField
                   select
                   fullWidth
                   label="Database Type"
-                  value={newConnection.db_type}
-                  onChange={(e) => setNewConnection({
-                    ...newConnection,
+                  value={newServer.db_type}
+                  onChange={(e) => setNewServer({
+                    ...newServer,
                     db_type: e.target.value,
-                    port: e.target.value === 'mysql' ? 3306 : 5432  // Update port based on DB type
+                    port: e.target.value === 'mysql' ? 3306 : 5432
                   })}
-                  sx={{ mb: 2 }}
                 >
                   <MenuItem value="postgresql">PostgreSQL</MenuItem>
                   <MenuItem value="mysql">MySQL</MenuItem>
                 </TextField>
-
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Host"
-                  value={newConnection.host}
-                  onChange={(e) => setNewConnection({ ...newConnection, host: e.target.value })}
-                  sx={{ mb: 2 }}
-                  required
+                  value={newServer.host}
+                  onChange={(e) => setNewServer({ ...newServer, host: e.target.value })}
                 />
-
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Port"
                   type="number"
-                  value={newConnection.port}
-                  onChange={(e) => setNewConnection({ ...newConnection, port: Number(e.target.value) })}
-                  sx={{ mb: 2 }}
-                  required
+                  value={newServer.port}
+                  onChange={(e) => setNewServer({ ...newServer, port: Number(e.target.value) })}
                 />
-
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Username"
-                  value={newConnection.username}
-                  onChange={(e) => setNewConnection({ ...newConnection, username: e.target.value })}
-                  sx={{ mb: 2 }}
-                  required
+                  value={newServer.username}
+                  onChange={(e) => setNewServer({ ...newServer, username: e.target.value })}
                 />
-
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Password"
                   type="password"
-                  value={newConnection.password}
-                  onChange={(e) => setNewConnection({ ...newConnection, password: e.target.value })}
-                  sx={{ mb: 2 }}
+                  value={newServer.password}
+                  onChange={(e) => setNewServer({ ...newServer, password: e.target.value })}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Server Name/Alias"
+                  value={newServer.alias}
+                  onChange={(e) => setNewServer({ ...newServer, alias: e.target.value })}
                   required
                 />
-
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Database Name"
-                  value={newConnection.database_name}
-                  onChange={(e) => setNewConnection({ ...newConnection, database_name: e.target.value })}
-                  sx={{ mb: 2 }}
+                  value={newServer.database_name}
+                  onChange={(e) => setNewServer({ ...newServer, database_name: e.target.value })}
                   required
+                  helperText="The name of the default database to connect to"
                 />
+              </Grid>
+            </Grid>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddServer}
+              variant="contained"
+              disabled={loading || !newServer.host || !newServer.username || !newServer.password || !newServer.alias || !newServer.database_name}
+            >
+              Add Server
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-                <Button
-                  variant="contained"
-                  color="primary"
-                  type="submit"
-                  disabled={loading}
-                >
-                  {loading ? <CircularProgress size={24} /> : 'Add Connection'}
-                </Button>
-              </form>
-            </Paper>
-
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-            {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Typography variant="h4" gutterBottom>
-              Existing Connections
+        {/* Delete Confirmation Dialog */}
+        <Dialog
+          open={deleteConfirmation.open}
+          onClose={() => setDeleteConfirmation({ open: false, server: null })}
+        >
+          <DialogTitle>Confirm Delete</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to delete the server "{deleteConfirmation.server?.alias}"? 
+              This action cannot be undone.
             </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button 
+              onClick={() => setDeleteConfirmation({ open: false, server: null })}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDeleteConfirm} 
+              color="error" 
+              variant="contained"
+            >
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-            <Paper>
-              <List>
-                {connections.map((connection) => (
-                  <React.Fragment key={connection.name}>
-                    <ListItem sx={{
-                      backgroundColor: 'background.paper',
-                      borderRadius: '8px',
-                      mb: 1,
-                      transition: '0.2s',
-                      '&:hover': { backgroundColor: 'action.hover' }
-                    }}>
-                      <ListItemText 
-                        primary={connection.name}
-                        secondary={
-                          <Box sx={{ mt: 1 }}>
-                            <Typography variant="caption" color="textSecondary">
-                              Schema:
-                            </Typography>
-                            <pre style={{ 
-                              whiteSpace: 'pre-wrap', 
-                              wordBreak: 'break-word',
-                              backgroundColor: 'background.default',
-                              color: 'text.primary',
-                              padding: '8px',
-                              borderRadius: '6px',
-                              maxHeight: '200px',
-                              overflow: 'auto',
-                              fontSize: '0.8rem',
-                              border: '1px solid',
-                              borderColor: 'divider'
-                            }}>
-                              {schemaLoading[connection.name] ? 
-                                'Loading...' : 
-                                schemas[connection.name]?.schema_content || 'No schema available'}
-                            </pre>
-                          </Box>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleRegenerateSchema(connection.name)}
-                          disabled={schemaLoading[connection.name]}
-                          sx={{ mr: 1 }}
-                        >
-                          <RefreshIcon />
-                        </IconButton>
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleDelete(connection.name)}
-                          disabled={loading}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  </React.Fragment>
-                ))}
-              </List>
-            </Paper>
-
-            {connections.length === 0 && (
-              <Typography color="textSecondary" sx={{ mt: 2 }}>
-                No connections found
-              </Typography>
-            )}
-          </Grid>
-        </Grid>
+        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+        {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
       </Box>
     </Box>
   );
