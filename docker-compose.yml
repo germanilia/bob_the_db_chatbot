@@ -13,7 +13,7 @@ services:
     networks:
       - app-network
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "localhost:host-gateway"
 
   frontend:
     build:

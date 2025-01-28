@@ -33,30 +33,22 @@ export const useChat = ({ onTableRefresh, onDatabaseRefresh }: RefreshCallbacks 
             timestamp: new Date(msg.timestamp),
           };
 
-          // Create user message
-          const userMessage = {
+          // Return a single message object based on the message type
+          return {
             ...baseMessage,
-            role: 'user' as const,
-            content: msg.prompt,
+            role: msg.result_data ? 'assistant' as const : 'user' as const,
+            content: msg.result_data ? msg.results_summary : msg.prompt,
+            ...(msg.result_data && {
+              queryResult: {
+                type: 'single' as const,
+                query: msg.result_data.query,
+                summary: msg.result_data.summary,
+                results: msg.result_data.results,
+                visuals: msg.result_data.visuals,
+              }
+            })
           };
-
-          // Create assistant message if there's a response
-          const assistantMessage = msg.result_data ? {
-            ...baseMessage,
-            role: 'assistant' as const,
-            content: msg.results_summary,
-            queryResult: {
-              type: 'single' as const,
-              query: msg.result_data.query,
-              summary: msg.result_data.summary,
-              results: msg.result_data.results,
-              visuals: msg.result_data.visuals,
-            }
-          } : null;
-
-          // Return array of messages
-          return assistantMessage ? [userMessage, assistantMessage] : [userMessage];
-        }).flat(), // Flatten the array of message pairs
+        }),
         connection: { name: connectionId } as AIConnection,
         database_name: conv.database_name,
         created_at: conv.created_at
@@ -105,27 +97,21 @@ export const useChat = ({ onTableRefresh, onDatabaseRefresh }: RefreshCallbacks 
             timestamp: new Date(msg.timestamp),
           };
 
-          const userMessage = {
+          return {
             ...baseMessage,
-            role: 'user' as const,
-            content: msg.prompt,
+            role: msg.result_data ? 'assistant' as const : 'user' as const,
+            content: msg.result_data ? msg.results_summary : msg.prompt,
+            ...(msg.result_data && {
+              queryResult: {
+                type: 'single' as const,
+                query: msg.result_data.query,
+                summary: msg.result_data.summary,
+                results: msg.result_data.results,
+                visuals: msg.result_data.visuals,
+              }
+            })
           };
-
-          const assistantMessage = msg.result_data ? {
-            ...baseMessage,
-            role: 'assistant' as const,
-            content: msg.results_summary,
-            queryResult: {
-              type: 'single' as const,
-              query: msg.result_data.query,
-              summary: msg.result_data.summary,
-              results: msg.result_data.results,
-              visuals: msg.result_data.visuals,
-            }
-          } : null;
-
-          return assistantMessage ? [userMessage, assistantMessage] : [userMessage];
-        }).flat(),
+        }),
         connection: { name: serverName } as AIConnection,
         database_name: conv.database_name,
         created_at: conv.created_at

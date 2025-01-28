@@ -275,9 +275,24 @@ export const Chat: React.FC<ChatProps> = ({
       const existingConversation = prevConversations.find(conv => conv.id === conversationId);
       
       if (existingConversation) {
+        // Check if either message already exists to avoid duplication
+        const messageExists = existingConversation.messages.some(
+          msg => (msg.role === 'user' && msg.content === userMessage.content) ||
+                (msg.role === 'assistant' && msg.content === assistantMessage.content)
+        );
+
+        // If messages already exist, don't update
+        if (messageExists) {
+          return prevConversations;
+        }
+
         const updatedConversation = {
           ...existingConversation,
-          messages: [...existingConversation.messages, assistantMessage]
+          messages: [
+            ...existingConversation.messages,
+            userMessage,
+            assistantMessage
+          ]
         };
 
         // Update current conversation

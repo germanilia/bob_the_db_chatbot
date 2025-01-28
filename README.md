@@ -22,6 +22,7 @@ Key Features:
 - Python 3.11+
 - Node.js 18+
 - npm
+- AWS Bedrock access with the `anthropic.claude-3-5-sonnet-20241022-v2:0` model enabled
 
 ## Database Setup
 
@@ -121,4 +122,4 @@ This will:
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs 
+- API Documentation: http://localhost:8000/docs
