@@ -63,7 +63,7 @@ CREATE DATABASE bob_the_db_chatbot;
    cp frontend/.env.example frontend/.env
    ```
    Edit `frontend/.env` with your:
-   - API base URL (defaults to http://localhost:8000/api)
+   - API base URL (defaults to http://localhost:9876/api)
 
 Note: Make sure all three .env files are properly configured before starting the application.
 
@@ -76,8 +76,8 @@ Note: Make sure all three .env files are properly configured before starting the
 
 This will:
 - Run database migrations automatically
-- Start the frontend at http://localhost:5173
-- Start the backend at http://localhost:8000
+- Start the frontend at http://localhost:9877
+- Start the backend at http://localhost:9876
 
 ## Local Development Setup
 
@@ -120,6 +120,6 @@ This will:
 
 ## Accessing the Application
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
+- Frontend: http://localhost:9877
+- Backend API: http://localhost:9876
+- API Documentation: http://localhost:9876/docs

@@ -6,7 +6,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "9876:8000"
     environment:
       - COMPOSE_DATABASE_URL=postgresql+asyncpg://postgres:Cowabunga1!@host.docker.internal:5432/bob_the_db_chatbot
       - COMPOSE_SYNC_DATABASE_URL=postgresql://postgres:Cowabunga1!@host.docker.internal:5432/bob_the_db_chatbot
@@ -20,9 +20,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000/api
+      - VITE_API_BASE_URL=http://localhost:9876/api
     ports:
-      - "5173:5173"
+      - "9877:5173"
     depends_on:
       - backend
     networks:
